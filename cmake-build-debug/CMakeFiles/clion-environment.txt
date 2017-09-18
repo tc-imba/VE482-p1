@@ -1,0 +1,2 @@
+Options: 
+CMake: 3.8.2@/home/liu/.local/share/JetBrains/Toolbox/apps/CLion/ch-0/173.2290.13/bin/cmake/bin/cmake

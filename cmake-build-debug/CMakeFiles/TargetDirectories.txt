@@ -1,0 +1,4 @@
+/home/liu/VE482-p1/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/liu/VE482-p1/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/liu/VE482-p1/cmake-build-debug/CMakeFiles/p1_test.dir
+/home/liu/VE482-p1/cmake-build-debug/CMakeFiles/p1.dir

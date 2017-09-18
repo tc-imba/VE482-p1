@@ -156,38 +156,38 @@ parsed_data_t *input_parse(char *buffer)
         {
             switch (state)
             {
-            case PARSE_COMMAND:
-                if (data->num == 0)
-                {
-                    data->commands = malloc(sizeof(command_t));
-                } else
-                {
-                    data->commands = realloc(data->commands, sizeof(command_t) * (data->num + 1));
-                }
-                new_command = &data->commands[data->num++];
-                command_init(new_command);
-                add_argv(new_command, start, length);
-                state = PARSE_OPTION;
+                case PARSE_COMMAND:
+                    if (data->num == 0)
+                    {
+                        data->commands = malloc(sizeof(command_t));
+                    } else
+                    {
+                        data->commands = realloc(data->commands, sizeof(command_t) * (data->num + 1));
+                    }
+                    new_command = &data->commands[data->num++];
+                    command_init(new_command);
+                    add_argv(new_command, start, length);
+                    state = PARSE_OPTION;
 //            printf("Find command %s\n", new_command->argv[0]);
-                break;
-            case PARSE_OPTION:
-                add_argv(new_command, start, length);
-                break;
+                    break;
+                case PARSE_OPTION:
+                    add_argv(new_command, start, length);
+                    break;
 //            printf("Find option %s\n", new_command->argv[new_command->argc - 1]);
-            case PARSE_INPUT:
-                if (new_command->input) free(new_command->input);
-                new_command->input = malloc(sizeof(char) * (length + 1));
-                strncpy(new_command->input, start, length);
-                new_command->input[length] = '\0';
-                state = PARSE_OPTION;
-                break;
-            case PARSE_OUTPUT:
-                if (new_command->output) free(new_command->output);
-                new_command->output = malloc(sizeof(char) * (length + 1));
-                strncpy(new_command->output, start, length);
-                new_command->output[length] = '\0';
-                state = PARSE_OPTION;
-                break;
+                case PARSE_INPUT:
+                    if (new_command->input) free(new_command->input);
+                    new_command->input = malloc(sizeof(char) * (length + 1));
+                    strncpy(new_command->input, start, length);
+                    new_command->input[length] = '\0';
+                    state = PARSE_OPTION;
+                    break;
+                case PARSE_OUTPUT:
+                    if (new_command->output) free(new_command->output);
+                    new_command->output = malloc(sizeof(char) * (length + 1));
+                    strncpy(new_command->output, start, length);
+                    new_command->output[length] = '\0';
+                    state = PARSE_OPTION;
+                    break;
             }
         }
 
@@ -197,11 +197,11 @@ parsed_data_t *input_parse(char *buffer)
     return data;
 }
 
-void fork_and_exec(parsed_data_t *data, int current)
+void fork_and_exec(parsed_data_t *data, int current, int previous_fd[])
 {
     if (current == data->num) return;
-    int fd[2];
-    if (current > 0)
+    int fd[2] = {};
+    if (current < data->num - 1)
     {
         int error = pipe(fd);
         if (error == -1)
@@ -213,58 +213,66 @@ void fork_and_exec(parsed_data_t *data, int current)
     pid_t pid = fork();
     if (pid == 0)
     {
-        if (current > 0)
-        {
-            close(fd[0]);
-            close(STDOUT_FILENO);
-            dup2(fd[1], STDOUT_FILENO);
-        }
         command_t *command = &data->commands[current];
 //        printf("command: %s\n", command->argv[0]);
         int fin = -1, fout = -1;
-        if (command->input_state != IO_STD)
+
+        if (command->input_state == IO_STD)
         {
-            printf("input: %s\n", command->input);
+            if (current > 0)
+            {
+                close(previous_fd[1]);
+                close(STDIN_FILENO);
+                dup2(previous_fd[0], STDIN_FILENO);
+            }
+        } else
+        {
+//            printf("input: %s\n", command->input);
             fin = open(command->input, O_RDONLY);
             close(STDIN_FILENO);
             dup2(fin, STDIN_FILENO);
         }
-        if (command->output_state != IO_STD)
+
+        if (command->output_state == IO_STD)
         {
-            printf("output: %s\n", command->output);
+            if (current < data->num - 1)
+            {
+                close(fd[0]);
+                close(STDOUT_FILENO);
+                dup2(fd[1], STDOUT_FILENO);
+            }
+        } else
+        {
+//            printf("output: %s\n", command->output);
             if (command->output_state == IO_FILE)
-                fout = open(command->output, O_CREAT | O_WRONLY, 0644);
+                fout = open(command->output, O_CREAT | O_TRUNC | O_WRONLY, 0644);
             else
                 fout = open(command->output, O_CREAT | O_WRONLY | O_APPEND);
             close(STDOUT_FILENO);
             dup2(fout, STDOUT_FILENO);
         }
-        printf("Child process: %s\n", command->argv[0]);
+//        printf("Child process: %s\n", command->argv[0]);
         int error = execvp(command->argv[0], command->argv);
+        if (error == -1)
+        {
+            printf("error\n");
+        }
         if (fin >= 0)close(fin);
         if (fout >= 0)close(fout);
         if (current > 0)
         {
             close(fd[1]);
         }
-        if (error == -1)
-        {
-            printf("error\n");
-        }
+
     } else
     {
         if (current > 0)
         {
-            close(fd[1]);
-            close(STDIN_FILENO);
-            dup2(fd[0], STDIN_FILENO);
+            close(previous_fd[0]);
+            close(previous_fd[1]);
         }
-        fork_and_exec(data, current + 1);
+        fork_and_exec(data, current + 1, fd);
         waitpid(pid, NULL, 0);
-        if (current > 0)
-        {
-            close(fd[0]);
-        }
     }
 }
 
@@ -284,8 +292,8 @@ int main(int argc, char *argv[])
         }
 
         parsed_data_t *data = input_parse(buffer_start);
-
-        fork_and_exec(data, 0);
+//        printf("%d\n", data->num);
+        fork_and_exec(data, 0, NULL);
     }
 
     input_parse_init();
