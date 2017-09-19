@@ -1,115 +1,65 @@
-//
-// Created by liu on 17-9-18.
-//
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <sys/wait.h>
+#include <signal.h>
 
 
-void fork_and_exec(char *data[3][3], int num, int current, int previous_fd[2])
+/*自定义的信号捕捉函数*//*
+
+void sig_int(int signo)
 {
-    if (current >= num) return;
-    int fd[2] = {};
-    if (current < num - 1)
-    {
-        pipe(fd);
-    }
-    pid_t pid = fork();
-    if (pid == 0)
-    {
-        if (current < num - 1)
-        {
-            close(fd[0]);
-            close(STDOUT_FILENO);
-            dup2(fd[1], STDOUT_FILENO);
-        }
-        if (current > 0)
-        {
-            close(previous_fd[1]);
-            close(STDIN_FILENO);
-            dup2(previous_fd[0], STDIN_FILENO);
-        }
-        execvp(data[current][0], data[current]);
-    } else
-    {
-        if (current > 0)
-        {
-            close(previous_fd[0]);
-            close(previous_fd[1]);
-        }
-        fork_and_exec(data, num, current + 1, fd);
-        waitpid(pid, NULL, 0);
-    }
+    printf("catch signal SIGINT\n");//单次打印  
+    sleep(1);
+    printf("----slept 10 s\n");
 }
 
+int main(void)
+{
+    struct sigaction act;
+
+    act.sa_handler = sig_int;
+    act.sa_flags = 0;
+    sigemptyset(&act.sa_mask);      //不屏蔽任何信号  
+//    sigaddset(&act.sa_mask, SIGQUIT);
+
+    sigaction(SIGQUIT, &act, NULL);
+
+    printf("------------main slept 10\n");
+    sleep(1);
+
+    while(1);//该循环只是为了保证有足够的时间来测试函数特性  
+
+    return 0;
+}  */
+
+#include <stdio.h>
+#include <termios.h>
 
 int main()
 {
-    char *data[4][3] = {
-            {"ls",   "-al", 0},
-            {"grep", "a",   0},
-            {"grep", "m",   0},
-            {"grep", "c",   0}
-    };
-//    printf("%s\n", data[0][0]);
-    fork_and_exec(data, 4, 0, NULL);
-//    for (int i = 0; i < 4; i++)
-//    {
-//        wait(NULL);
-//    }
-    return 0;
+    int fd = STDIN_FILENO;
+    struct termios raw;
+    int rs = tcgetattr(fd, &raw);
+    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    raw.c_oflag &= ~(OPOST);
+    raw.c_cflag |= (CS8);
+    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    raw.c_cc[VMIN] = 1;
+    raw.c_cc[VTIME] = 0;
+    rs = tcsetattr(fd, TCSAFLUSH, &raw);
+
+
+    while (1)
+    {
+        char c;
+        int nread = read(STDIN_FILENO, &c, 1);
+        if (nread <= 0)
+        {
+            break;
+        }
+        printf("%c", c);
+        fflush(stdout);
+    }
 }
 
-
-//int main()
-//{
-//
-//    pid_t pid;
-//    int fd1[2], fd2[2], i;
-//
-//    printf("%d\n", pipe(fd1));
-//    printf("%d\n", pipe(fd2));
-//
-//    for (i = 0; i < 3; i++)
-//    {
-//        if ((pid = fork()) == 0)
-//        {
-//            break;
-//        }
-//    }
-//
-//    if (i == 0)
-//    {           //兄
-//        close(fd1[0]);               //写,关闭读端
-//        dup2(fd1[1], STDOUT_FILENO);
-//        close(fd2[0]);
-//        close(fd2[1]);
-//        execlp("ls", "ls", "-al", NULL);
-//    } else if (i == 1)
-//    {    //弟
-//        close(fd1[1]);               //读，关闭写端
-//        dup2(fd1[0], STDIN_FILENO);
-//        close(fd2[0]);               //写,关闭读端
-//        dup2(fd2[1], STDOUT_FILENO);
-//        execlp("grep", "grep", "a", NULL);
-//    } else if (i == 2)
-//    {    //弟
-//        close(fd2[1]);               //读，关闭写端
-//        dup2(fd2[0], STDIN_FILENO);
-//        close(fd1[0]);
-//        close(fd1[1]);
-//        execlp("grep", "grep", "a", NULL);
-//    } else
-//    {
-//        close(fd1[0]);
-//        close(fd1[1]);
-//        close(fd2[0]);
-//        close(fd2[1]);
-//        for (i = 0; i < 3; i++)       //两个儿子wait两次
-//            wait(NULL);
-//    }
-//
-//    return 0;
-//}

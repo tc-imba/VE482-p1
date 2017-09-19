@@ -1,11 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <stdbool.h>
-#include <sys/wait.h>
 #include <string.h>
 #include <stddef.h>
+
+#include <unistd.h>
 #include <fcntl.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <dirent.h>
 
 #define MAX_COMMAND_LENGTH 1024
 
@@ -112,7 +115,6 @@ parsed_data_t *input_parse_init()
 
 parsed_data_t *input_parse(char *buffer)
 {
-    static char temp[MAX_COMMAND_LENGTH + 2] = {};
     parse_state state = PARSE_COMMAND;
 
     parsed_data_t *data = input_parse_init();
@@ -197,6 +199,37 @@ parsed_data_t *input_parse(char *buffer)
     return data;
 }
 
+void print_pwd(ino_t ino)
+{
+    struct stat st;
+    if (stat(".", &st) == -1 || ino == st.st_ino) return;
+    DIR *dir = opendir(".");
+    struct dirent *dt;
+    char *str = NULL;
+    if (ino > 0)
+    {
+        while ((dt = readdir(dir)) != NULL)
+        {
+            if (ino == dt->d_ino)
+            {
+                str = malloc(sizeof(char) * (dt->d_reclen + 1));
+                strcpy(str, dt->d_name);
+                break;
+            }
+        }
+    }
+    closedir(dir);
+    chdir("..");
+    print_pwd(st.st_ino);
+    chdir(str);
+    if (str)
+    {
+        printf("/%s", str);
+        free(str);
+    }
+    if (ino == 0) printf("\n");
+}
+
 void fork_and_exec(parsed_data_t *data, int current, int previous_fd[])
 {
     if (current == data->num) return;
@@ -217,30 +250,26 @@ void fork_and_exec(parsed_data_t *data, int current, int previous_fd[])
 //        printf("command: %s\n", command->argv[0]);
         int fin = -1, fout = -1;
 
+        if (current > 0) close(previous_fd[1]);
         if (command->input_state == IO_STD)
         {
-            if (current > 0)
-            {
-                close(previous_fd[1]);
-                close(STDIN_FILENO);
-                dup2(previous_fd[0], STDIN_FILENO);
-            }
+            if (current > 0) fin = previous_fd[0];
         } else
         {
 //            printf("input: %s\n", command->input);
             fin = open(command->input, O_RDONLY);
+        }
+        if (fin >= 0)
+        {
             close(STDIN_FILENO);
             dup2(fin, STDIN_FILENO);
         }
 
+        if (current < data->num - 1) close(fd[0]);
         if (command->output_state == IO_STD)
         {
-            if (current < data->num - 1)
-            {
-                close(fd[0]);
-                close(STDOUT_FILENO);
-                dup2(fd[1], STDOUT_FILENO);
-            }
+            if (current < data->num - 1) fout = fd[1];
+
         } else
         {
 //            printf("output: %s\n", command->output);
@@ -248,21 +277,28 @@ void fork_and_exec(parsed_data_t *data, int current, int previous_fd[])
                 fout = open(command->output, O_CREAT | O_TRUNC | O_WRONLY, 0644);
             else
                 fout = open(command->output, O_CREAT | O_WRONLY | O_APPEND);
+        }
+        if (fout >= 0)
+        {
             close(STDOUT_FILENO);
             dup2(fout, STDOUT_FILENO);
         }
+
 //        printf("Child process: %s\n", command->argv[0]);
-        int error = execvp(command->argv[0], command->argv);
-        if (error == -1)
+        if (strcmp(command->argv[0], "pwd") == 0)
         {
-            printf("error\n");
-        }
-        if (fin >= 0)close(fin);
-        if (fout >= 0)close(fout);
-        if (current > 0)
+            print_pwd(0);
+            exit(0);
+        } else
         {
-            close(fd[1]);
+            int error = execvp(command->argv[0], command->argv);
+            if (error == -1)
+            {
+                printf("error\n");
+            }
         }
+        if (fin >= 0) close(fin);
+        if (fout >= 0) close(fout);
 
     } else
     {
@@ -276,6 +312,31 @@ void fork_and_exec(parsed_data_t *data, int current, int previous_fd[])
     }
 }
 
+int input(char *buffer)
+{
+    /*char *pos = buffer;
+    int c = 0;
+    do
+    {
+        c = getchar();
+        if (c == -1)
+        {
+            if (pos == buffer) return -1;
+        } else
+        {
+            *(pos++) = c;
+        }
+        printf("%d\n", c);
+    } while (c != '\n');
+    return 0;*/
+    while (1)
+    {
+        int c = fgetc(stdin);
+//        char c = getchar();
+
+    }
+}
+
 int main(int argc, char *argv[])
 {
     char buffer[MAX_COMMAND_LENGTH + 2] = {};
@@ -284,6 +345,9 @@ int main(int argc, char *argv[])
     {
         prompt();
         fgets(buffer, sizeof(buffer), stdin);
+        printf("%s\n", buffer);
+//        input(buffer);
+
         input_trim(buffer, &buffer_start);
 
         if (strcmp(buffer_start, "exit") == 0)
@@ -293,7 +357,20 @@ int main(int argc, char *argv[])
 
         parsed_data_t *data = input_parse(buffer_start);
 //        printf("%d\n", data->num);
-        fork_and_exec(data, 0, NULL);
+
+
+
+
+        if (data->num > 0 && strcmp(data->commands[0].argv[0], "cd") == 0)
+        {
+            int fd = open(data->commands[0].argv[1], O_RDONLY);
+            if (fd < 0) printf("%s: No such file or directory\n", data->commands[0].argv[1]);
+            else if (fchdir(fd) < 0) printf("%s: Not a directory\n", data->commands[0].argv[1]);
+        } else
+        {
+            fork_and_exec(data, 0, NULL);
+        }
+
     }
 
     input_parse_init();
