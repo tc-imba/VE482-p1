@@ -10,6 +10,8 @@
 #include <sys/stat.h>
 #include <dirent.h>
 
+#include "editor.h"
+
 #define MAX_COMMAND_LENGTH 1024
 
 typedef enum
@@ -158,38 +160,38 @@ parsed_data_t *input_parse(char *buffer)
         {
             switch (state)
             {
-                case PARSE_COMMAND:
-                    if (data->num == 0)
-                    {
-                        data->commands = malloc(sizeof(command_t));
-                    } else
-                    {
-                        data->commands = realloc(data->commands, sizeof(command_t) * (data->num + 1));
-                    }
-                    new_command = &data->commands[data->num++];
-                    command_init(new_command);
-                    add_argv(new_command, start, length);
-                    state = PARSE_OPTION;
+            case PARSE_COMMAND:
+                if (data->num == 0)
+                {
+                    data->commands = malloc(sizeof(command_t));
+                } else
+                {
+                    data->commands = realloc(data->commands, sizeof(command_t) * (data->num + 1));
+                }
+                new_command = &data->commands[data->num++];
+                command_init(new_command);
+                add_argv(new_command, start, length);
+                state = PARSE_OPTION;
 //            printf("Find command %s\n", new_command->argv[0]);
-                    break;
-                case PARSE_OPTION:
-                    add_argv(new_command, start, length);
-                    break;
+                break;
+            case PARSE_OPTION:
+                add_argv(new_command, start, length);
+                break;
 //            printf("Find option %s\n", new_command->argv[new_command->argc - 1]);
-                case PARSE_INPUT:
-                    if (new_command->input) free(new_command->input);
-                    new_command->input = malloc(sizeof(char) * (length + 1));
-                    strncpy(new_command->input, start, length);
-                    new_command->input[length] = '\0';
-                    state = PARSE_OPTION;
-                    break;
-                case PARSE_OUTPUT:
-                    if (new_command->output) free(new_command->output);
-                    new_command->output = malloc(sizeof(char) * (length + 1));
-                    strncpy(new_command->output, start, length);
-                    new_command->output[length] = '\0';
-                    state = PARSE_OPTION;
-                    break;
+            case PARSE_INPUT:
+                if (new_command->input) free(new_command->input);
+                new_command->input = malloc(sizeof(char) * (length + 1));
+                strncpy(new_command->input, start, length);
+                new_command->input[length] = '\0';
+                state = PARSE_OPTION;
+                break;
+            case PARSE_OUTPUT:
+                if (new_command->output) free(new_command->output);
+                new_command->output = malloc(sizeof(char) * (length + 1));
+                strncpy(new_command->output, start, length);
+                new_command->output[length] = '\0';
+                state = PARSE_OPTION;
+                break;
             }
         }
 
@@ -294,7 +296,7 @@ void fork_and_exec(parsed_data_t *data, int current, int previous_fd[])
             int error = execvp(command->argv[0], command->argv);
             if (error == -1)
             {
-                printf("error\n");
+                printf("%s: command not found\n", command->argv[0]);
             }
         }
         if (fin >= 0) close(fin);
@@ -312,31 +314,6 @@ void fork_and_exec(parsed_data_t *data, int current, int previous_fd[])
     }
 }
 
-int input(char *buffer)
-{
-    /*char *pos = buffer;
-    int c = 0;
-    do
-    {
-        c = getchar();
-        if (c == -1)
-        {
-            if (pos == buffer) return -1;
-        } else
-        {
-            *(pos++) = c;
-        }
-        printf("%d\n", c);
-    } while (c != '\n');
-    return 0;*/
-    while (1)
-    {
-        int c = fgetc(stdin);
-//        char c = getchar();
-
-    }
-}
-
 int main(int argc, char *argv[])
 {
     char buffer[MAX_COMMAND_LENGTH + 2] = {};
@@ -344,11 +321,23 @@ int main(int argc, char *argv[])
     while (true)
     {
         prompt();
-        fgets(buffer, sizeof(buffer), stdin);
-        printf("%s\n", buffer);
-//        input(buffer);
 
+        if (isatty(STDIN_FILENO))
+        {
+//            printf("Terminal mode!\n");
+            enable_editor_mode();
+            int rs = editor_mode_read(buffer);
+            disable_editor_mode();
+            if (rs == -1) continue;
+            else if (rs == -2) break;
+        } else
+        {
+            printf("Text mode!\n");
+        }
+
+//        fgets(buffer, sizeof(buffer), stdin);
         input_trim(buffer, &buffer_start);
+//        printf("%s\n", buffer_start);
 
         if (strcmp(buffer_start, "exit") == 0)
         {
@@ -357,10 +346,6 @@ int main(int argc, char *argv[])
 
         parsed_data_t *data = input_parse(buffer_start);
 //        printf("%d\n", data->num);
-
-
-
-
         if (data->num > 0 && strcmp(data->commands[0].argv[0], "cd") == 0)
         {
             int fd = open(data->commands[0].argv[1], O_RDONLY);
