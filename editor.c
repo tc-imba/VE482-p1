@@ -74,17 +74,11 @@ int editor_mode_read(char *buffer) {
     int fd = STDIN_FILENO;
     int end_read = 0;
     int special_mode = 0;
-    int ctrl_d_mode = 0;
     char c;
     int length = 0, now = 0;
     buffer[0] = '\0'; // Initial \0
     while (!end_read) {
         long nread = read(fd, &c, 1);
-        if (ctrl_d_mode) {
-            printf("%d ", c);
-            fflush(stdout);
-            continue;
-        }
         if (special_mode) {
             switch (c) {
             case SPECIAL_BEGIN:
@@ -134,7 +128,6 @@ int editor_mode_read(char *buffer) {
                 for (int i = 0; i < length - now + 1; i++) printf("\b");
                 now--;
                 length--;
-                ctrl_d_mode = 1;
             }
             break;
         case CTRL_C:
@@ -143,7 +136,7 @@ int editor_mode_read(char *buffer) {
         case CTRL_D:
             if (length == 0) return -2;
             else {
-                buffer[now] = ' ';
+                buffer[now] = '\0';
                 for (int i = 0; i < length - now; i++) printf(" ");
                 for (int i = 0; i < length - now; i++) printf("\b");
                 length = now;
