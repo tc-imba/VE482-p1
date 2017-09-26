@@ -32,6 +32,12 @@ typedef enum {
     PARSE_OUTPUT
 } parse_state;
 
+typedef enum {
+    STRING_NORMAL,
+    STRING_QUOTE_SINGLE,
+    STRING_QUOTE_DOUBLE
+} string_state;
+
 void input_trim(char *buffer, char **start);
 
 parsed_data_t *input_parse_init();

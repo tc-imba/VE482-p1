@@ -4,6 +4,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <stdbool.h>
 
 #include "parser.h"
@@ -64,6 +65,8 @@ parsed_data_t *input_parse_init() {
     return &data;
 }
 
+char temp_buffer[MAX_COMMAND_LENGTH + 1] = {};
+
 parsed_data_t *input_parse(char *buffer) {
     parse_state state = PARSE_COMMAND;
 
@@ -74,9 +77,69 @@ parsed_data_t *input_parse(char *buffer) {
     char *start = buffer;
     while (*start != '\0') {
         bool skip = false;
-        char *pos = strchr(start, ' ');
-        if (pos == NULL) pos = start + strlen(start);
-        size_t length = pos - start;
+
+        while (*start == ' ') start++;
+        if (*start == '\0') break;
+
+        string_state s_state = STRING_NORMAL;
+        while (true) {
+            if (s_state==' ')
+        }
+
+        char *pos = start;
+        size_t length = 0;
+
+
+        while (*start != ' ' && *start != '\0') {
+            if (*start == '\"' || *start == '\'') {
+                char *pos = strchr(start + 1, *pos);
+                if (pos == NULL) {
+                    // Not completed
+                    state = PARSE_QUOTE;
+                    break;
+                }
+                strncpy(temp_buffer + length, start + 1, pos - start - 1);
+                length += pos - start - 1;
+                start = pos + 1;
+            } else {
+                char *pos = strchr(start, ' ');
+                if (pos == NULL) {
+                    pos = start + strlen(start);
+
+                    length += strlen(start);
+                } else {
+
+                }
+                length = pos - start;
+            }
+
+        }
+
+/*        if (*start == '\"') {
+            pos = strchr(start + 1, '\"');
+            if (pos == NULL) {
+                // Not completed
+                state = PARSE_QUOTE_DOUBLE;
+                break;
+            }
+            start++;
+            pos--;
+        } else if (*start == '\'') {
+            pos = strchr(start + 1, '\'');
+            if (pos == NULL) {
+                // Not completed
+                state = PARSE_QUOTE_SINGLE;
+                break;
+            }
+
+            start++;
+            pos++;
+        } else {
+            pos = strchr(start, ' ');
+            if (pos == NULL) pos = start + strlen(start);
+            length = pos - start;
+        }*/
+
 
         if (length == 1) {
             if (*start == '>') {
@@ -136,5 +199,12 @@ parsed_data_t *input_parse(char *buffer) {
         start = pos;
         while (*start == ' ')start++;
     }
+
+    if (state != PARSE_OPTION) {
+        // Not completed
+
+    }
+
+
     return data;
 }

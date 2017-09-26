@@ -45,27 +45,27 @@ void print_pwd(ino_t ino) {
 }
 
 void change_dir(const char *dirname) {
-    int fd;
     const size_t len1 = strlen(dirname);
     if (strlen(dirname) == 0 || dirname[0] == '~') {
         struct passwd *pwd = getpwuid(getuid());
         const size_t len2 = strlen(pwd->pw_dir);
-        char *temp = malloc(sizeof(char) * (len1 + len2 + 1));
+        char *temp = malloc(sizeof(char) * (len1 + len2));
         strcpy(temp, pwd->pw_dir);
-        temp[len2] = '/';
         if (len1 > 1) {
-            strcpy(temp + len2 + 1, dirname + 1);
-            temp[len1 + len2] = '\0';
+            strcpy(temp + len2, dirname + 1);
+            temp[len1 + len2 - 1] = '\0';
         } else {
-            temp[len2 + 1] = '\0';
+            temp[len2] = '\0';
         }
-        fd = open(temp, O_RDONLY);
+        int fd = open(temp, O_RDONLY);
+        if (fd < 0) printf("%s: No such file or directory\n", temp);
+        else if (fchdir(fd) < 0) printf("%s: Not a directory\n", temp);
         free(temp);
     } else {
-        fd = open(dirname, O_RDONLY);
+        int fd = open(dirname, O_RDONLY);
+        if (fd < 0) printf("%s: No such file or directory\n", dirname);
+        else if (fchdir(fd) < 0) printf("%s: Not a directory\n", dirname);
     }
-    if (fd < 0) printf("%s: No such file or directory\n", dirname);
-    else if (fchdir(fd) < 0) printf("%s: Not a directory\n", dirname);
 }
 
 void sigroutine(int dunno) {
@@ -73,7 +73,6 @@ void sigroutine(int dunno) {
         printf("\n");
     }
 }
-
 
 void fork_and_exec(parsed_data_t *data, int current, int previous_fd[]) {
     if (current == data->num) return;
