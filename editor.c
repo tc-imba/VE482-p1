@@ -5,10 +5,10 @@
 #include <unistd.h>
 #include <termios.h>
 #include <stdio.h>
+#include <string.h>
 #include "editor.h"
 
-enum KEY_ACTION
-{
+enum KEY_ACTION {
     KEY_NULL = 0,        /* NULL */
     CTRL_A = 1,         /* Ctrl+a */
     CTRL_B = 2,         /* Ctrl-b */
@@ -30,8 +30,7 @@ enum KEY_ACTION
     BACKSPACE = 127    /* Backspace */
 };
 
-enum KEY_SPECIAL
-{
+enum KEY_SPECIAL {
     SPECIAL_BEGIN = 91,
     ARROW_UP = 65,
     ARROW_DOWN = 66,
@@ -42,8 +41,7 @@ enum KEY_SPECIAL
 struct termios origin_termios;
 int editor_mode = 0;
 
-int enable_editor_mode()
-{
+int enable_editor_mode() {
     if (editor_mode) return 0;
     int fd = STDIN_FILENO;
     int rs = tcgetattr(fd, &origin_termios);
@@ -62,8 +60,7 @@ int enable_editor_mode()
     return 0;
 }
 
-int disable_editor_mode()
-{
+int disable_editor_mode() {
     if (!editor_mode) return 0;
     int fd = STDIN_FILENO;
     int rs = tcsetattr(fd, TCSAFLUSH, &origin_termios);
@@ -73,23 +70,25 @@ int disable_editor_mode()
     return 0;
 }
 
-int editor_mode_read(char *buffer)
-{
+int editor_mode_read(char *buffer) {
     int fd = STDIN_FILENO;
     int end_read = 0;
     int special_mode = 0;
+    int ctrl_d_mode = 0;
     char c;
-    int length = 0;
-    while (!end_read)
-    {
+    int length = 0, now = 0;
+    buffer[0] = '\0'; // Initial \0
+    while (!end_read) {
         long nread = read(fd, &c, 1);
-        if (special_mode)
-        {
-            switch (c)
-            {
+        if (ctrl_d_mode) {
+            printf("%d ", c);
+            fflush(stdout);
+            continue;
+        }
+        if (special_mode) {
+            switch (c) {
             case SPECIAL_BEGIN:
-                if (special_mode == 1)
-                {
+                if (special_mode == 1) {
                     special_mode = 2;
                     continue;
                 }
@@ -99,9 +98,15 @@ int editor_mode_read(char *buffer)
             case ARROW_DOWN:
             case ARROW_RIGHT:
             case ARROW_LEFT:
-                if (special_mode == 2)
-                {
-                    
+                if (special_mode == 2) {
+                    if (c == ARROW_LEFT && now > 0) {
+                        now--;
+                        printf("\b");
+                        fflush(stdout);
+                    } else if (c == ARROW_RIGHT && now < length) {
+                        printf("%c", buffer[now++]);
+                        fflush(stdout);
+                    }
                     special_mode = 0;
                     continue;
                 }
@@ -112,8 +117,7 @@ int editor_mode_read(char *buffer)
                 break;
             }
         }
-        switch (c)
-        {
+        switch (c) {
         case ESC:
             special_mode = 1;
             break;
@@ -124,10 +128,13 @@ int editor_mode_read(char *buffer)
             break;
         case BACKSPACE:
         case CTRL_H:
-            if (length > 0)
-            {
-                printf("\b \b");
+            if (now > 0) {
+                memmove(buffer + now - 1, buffer + now, length - now + 1);
+                printf("\b%s ", buffer + now - 1);
+                for (int i = 0; i < length - now + 1; i++) printf("\b");
+                now--;
                 length--;
+                ctrl_d_mode = 1;
             }
             break;
         case CTRL_C:
@@ -135,11 +142,22 @@ int editor_mode_read(char *buffer)
             return -1;
         case CTRL_D:
             if (length == 0) return -2;
-//            else
+            else {
+                buffer[now] = ' ';
+                for (int i = 0; i < length - now; i++) printf(" ");
+                for (int i = 0; i < length - now; i++) printf("\b");
+                length = now;
+            }
 //        case :
         default:
-            buffer[length++] = c;
-            printf("%d ", c);
+            if (now <= length) {
+                memmove(buffer + now + 1, buffer + now, length - now + 1); // \0 is always moved
+                buffer[now] = c;
+                printf("%s", buffer + now);
+                now++;
+                length++;
+                for (int i = 0; i < length - now; i++) printf("\b");
+            } else printf("error\n");
             break;
         }
         fflush(stdout);
