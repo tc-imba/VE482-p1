@@ -9,14 +9,18 @@
 
 #include "parser.h"
 
-void input_preprocess(char *buffer, char *parse_buffer) {
+void input_preprocess(char *buffer, char *parse_buffer, parse_state state) {
     size_t len1 = strlen(parse_buffer);
+    if (len1 > 0) {
+        if (state == PARSE_QUOTE) parse_buffer[len1] = '\n';
+        else parse_buffer[len1] = ' ';
+        len1++;
+    }
     while (buffer[0] == ' ') buffer++;
     size_t len2 = strlen(buffer);
     while (len2 > 0 && (buffer[len2 - 1] == ' ' || buffer[len2 - 1] == '\n')) len2--;
     strncpy(parse_buffer + len1, buffer, len2);
-    parse_buffer[len1 + len2] = '\n';
-    parse_buffer[len1 + len2 + 1] = '\0';
+    parse_buffer[len1 + len2] = '\0';
 }
 
 void add_argv(command_t *command, const char *str, const size_t length) {
@@ -67,7 +71,7 @@ parsed_data_t *input_parse_init() {
     return &data;
 }
 
-char temp_buffer[MAX_COMMAND_LENGTH + 1] = {};
+char temp_buffer[MAX_COMMAND_LENGTH + 2] = {};
 
 parsed_data_t *input_parse(char *buffer) {
     parse_state state = PARSE_COMMAND;
@@ -76,36 +80,36 @@ parsed_data_t *input_parse(char *buffer) {
     data->num = 0;
 
     command_t *new_command;
-    char *start = buffer;
-    while (*start != '\0') {
+    char *now = buffer;
+    while (*now != '\0') {
         bool skip = false;
 
         string_state s_state = STRING_NORMAL;
         size_t length = 0;
 
-        while (*start) {
+        while (*now) {
             if (s_state == STRING_NORMAL) {
-                if (*start == ' ' || *start == '\n') {
-                    start++;
+                if (*now == ' ' || *now == '\n') {
+                    now++;
                     break;
-                } else if (*start == '\"') {
+                } else if (*now == '\"') {
                     s_state = STRING_QUOTE_DOUBLE;
-                    start++;
-                } else if (*start == '\'') {
+                    now++;
+                } else if (*now == '\'') {
                     s_state = STRING_QUOTE_SINGLE;
-                    start++;
+                    now++;
                 } else {
-                    temp_buffer[length++] = *(start++);
+                    temp_buffer[length++] = *(now++);
                 }
             } else {
-                if (*start == '\"' && s_state == STRING_QUOTE_DOUBLE) {
+                if (*now == '\"' && s_state == STRING_QUOTE_DOUBLE) {
                     s_state = STRING_NORMAL;
-                    start++;
-                } else if (*start == '\'' && s_state == STRING_QUOTE_SINGLE) {
+                    now++;
+                } else if (*now == '\'' && s_state == STRING_QUOTE_SINGLE) {
                     s_state = STRING_NORMAL;
-                    start++;
+                    now++;
                 } else {
-                    temp_buffer[length++] = *(start++);
+                    temp_buffer[length++] = *(now++);
                 }
             }
         }
@@ -172,15 +176,16 @@ parsed_data_t *input_parse(char *buffer) {
                 break;
             }
         }
-        if (!*start) break;
-        while (*start == ' ' || *start == '\n') start++;
+        if (!*now) break;
+        while (*now == ' ' || *now == '\n') now++;
     }
+
+    if (data->num == 0) return data;
 
     if (state != PARSE_OPTION) {
         // Not completed
         data->num = -1;
     }
-
-
+    data->state = state;
     return data;
 }

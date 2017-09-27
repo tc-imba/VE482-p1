@@ -5,8 +5,12 @@
 #include <unistd.h>
 #include <termios.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
 #include "editor.h"
+#include "history.h"
+#include "utils.h"
 
 enum KEY_ACTION {
     KEY_NULL = 0,        /* NULL */
@@ -69,6 +73,27 @@ int disable_editor_mode() {
     return 0;
 }
 
+void read_from_history(char *buffer, int previous, int *now, int *length) {
+    set_history(buffer);
+    const char *temp;
+    if (previous) temp = get_history_previous();
+    else temp = get_history_next();
+    if (temp) {
+        printf("\r\33[K");
+        strcpy(buffer, temp);
+        print_prompt();
+        *now = *length = strlen(buffer);
+        while (*temp) {
+            if (*temp == '\n') {
+                printf("\n\r");
+                print_incomplete();
+            } else printf("%c", *temp);
+            temp++;
+        }
+        fflush(stdout);
+    }
+}
+
 int editor_mode_read(char *buffer) {
     int fd = STDIN_FILENO;
     int end_read = 0;
@@ -76,8 +101,12 @@ int editor_mode_read(char *buffer) {
     char c;
     int length = 0, now = 0;
     buffer[0] = '\0'; // Initial \0
+    reset_history();
     while (!end_read) {
         long nread = read(fd, &c, 1);
+        if (nread < 0) {
+            return -3;
+        }
         if (special_mode) {
             switch (c) {
             case SPECIAL_BEGIN:
@@ -99,6 +128,10 @@ int editor_mode_read(char *buffer) {
                     } else if (c == ARROW_RIGHT && now < length) {
                         printf("%c", buffer[now++]);
                         fflush(stdout);
+                    } else if (c == ARROW_UP) {
+                        read_from_history(buffer, 1, &now, &length);
+                    } else {
+                        read_from_history(buffer, 0, &now, &length);
                     }
                     special_mode = 0;
                     continue;
@@ -123,8 +156,17 @@ int editor_mode_read(char *buffer) {
         case CTRL_H:
             if (now > 0) {
                 memmove(buffer + now - 1, buffer + now, length - now + 1);
-                printf("\b%s ", buffer + now - 1);
-                for (int i = 0; i < length - now + 1; i++) printf("\b");
+//                buffer[length - 1] = '\0';
+                if (buffer[now - 1] == '\n') {
+                    printf("\33[A");
+                                        
+                } else {
+                    printf("\b\33[K");
+                    char *temp = buffer + now - 1;
+                    while (*temp && *temp != '\n') {
+                        printf("%c", *temp++);
+                    }
+                }
                 now--;
                 length--;
             }

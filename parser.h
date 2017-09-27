@@ -13,18 +13,6 @@ typedef enum {
     IO_FILE_APPEND
 } io_state;
 
-typedef struct command_t {
-    int argc;
-    char **argv;
-    char *input, *output;
-    io_state input_state, output_state;
-} command_t;
-
-typedef struct parsed_data_t {
-    int num;
-    command_t *commands;
-} parsed_data_t;
-
 typedef enum {
     PARSE_COMMAND,
     PARSE_OPTION,
@@ -39,7 +27,20 @@ typedef enum {
     STRING_QUOTE_DOUBLE
 } string_state;
 
-void input_preprocess(char *buffer, char *parse_buffer);
+typedef struct command_t {
+    int argc;
+    char **argv;
+    char *input, *output;
+    io_state input_state, output_state;
+} command_t;
+
+typedef struct parsed_data_t {
+    int num;
+    command_t *commands;
+    parse_state state;
+} parsed_data_t;
+
+void input_preprocess(char *buffer, char *parse_buffer, parse_state state);
 
 parsed_data_t *input_parse_init();
 

@@ -9,11 +9,12 @@
 #include "editor.h"
 #include "parser.h"
 #include "utils.h"
-
+#include "history.h"
 
 int main(int argc, char *argv[]) {
     char buffer[MAX_COMMAND_LENGTH + 2] = {};
     char parse_buffer[MAX_COMMAND_LENGTH + 2] = {};
+    parse_state state = PARSE_OPTION;
 //    char *buffer_start;
     bool complete = true;
     while (true) {
@@ -51,13 +52,15 @@ int main(int argc, char *argv[]) {
             printf("Text mode!\n");
         }
 
-        input_preprocess(buffer, parse_buffer);
+        input_preprocess(buffer, parse_buffer, state);
 
         if (strcmp(parse_buffer, "exit") == 0) {
             break;
         }
 
         parsed_data_t *data = input_parse(parse_buffer);
+        state = data->state;
+
         if (data->num < 0) {
             complete = false;
         } else if (data->num > 0 && strcmp(data->commands[0].argv[0], "cd") == 0) {
@@ -67,14 +70,17 @@ int main(int argc, char *argv[]) {
                 change_dir("~");
             }
             complete = true;
+            add_history(parse_buffer);
             parse_buffer[0] = '\0';
         } else {
             fork_and_exec(data, 0, NULL);
             complete = true;
+            if (data->num > 0) add_history(parse_buffer);
             parse_buffer[0] = '\0';
         }
     }
 
     input_parse_init();
+    free_history();
     return 0;
 }
