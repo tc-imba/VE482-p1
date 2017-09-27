@@ -2,12 +2,10 @@
 // Created by liu on 17-9-20.
 //
 
-#include <fcntl.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <termios.h>
 #include <stdio.h>
-//#include <stdlib.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "editor.h"
