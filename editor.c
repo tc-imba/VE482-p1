@@ -2,6 +2,8 @@
 // Created by liu on 17-9-20.
 //
 
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <termios.h>
 #include <stdio.h>
@@ -159,7 +161,7 @@ int editor_mode_read(char *buffer) {
 //                buffer[length - 1] = '\0';
                 if (buffer[now - 1] == '\n') {
                     printf("\33[A");
-                                        
+
                 } else {
                     printf("\b\33[K");
                     char *temp = buffer + now - 1;
