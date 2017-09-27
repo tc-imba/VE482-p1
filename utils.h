@@ -10,6 +10,8 @@
 
 void print_prompt();
 
+void print_incomplete();
+
 void print_pwd(ino_t ino);
 
 void change_dir(const char *dirname);

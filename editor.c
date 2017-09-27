@@ -66,7 +66,6 @@ int disable_editor_mode() {
     int rs = tcsetattr(fd, TCSAFLUSH, &origin_termios);
     if (rs == -1) return -1;
     editor_mode = 0;
-    printf("\n");
     return 0;
 }
 
@@ -141,7 +140,9 @@ int editor_mode_read(char *buffer) {
                 for (int i = 0; i < length - now; i++) printf("\b");
                 length = now;
             }
-//        case :
+        case TAB:
+
+            break;
         default:
             if (now <= length) {
                 memmove(buffer + now + 1, buffer + now, length - now + 1); // \0 is always moved

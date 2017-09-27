@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <signal.h>
 #include <pwd.h>
 
 #include "utils.h"
@@ -18,30 +19,14 @@ void print_prompt() {
     printf("\033[1;34mve482sh $\033[0m ");
 }
 
+void print_incomplete() {
+    printf("> ");
+}
+
 void print_pwd(ino_t ino) {
-    struct stat st;
-    if (stat(".", &st) == -1 || ino == st.st_ino) return;
-    DIR *dir = opendir(".");
-    struct dirent *dt;
-    char *str = NULL;
-    if (ino > 0) {
-        while ((dt = readdir(dir)) != NULL) {
-            if (ino == dt->d_ino) {
-                str = malloc(sizeof(char) * (dt->d_reclen + 1));
-                strcpy(str, dt->d_name);
-                break;
-            }
-        }
-    }
-    closedir(dir);
-    chdir("..");
-    print_pwd(st.st_ino);
-    chdir(str);
-    if (str) {
-        printf("/%s", str);
-        free(str);
-    }
-    if (ino == 0) printf("\n");
+    static char temp[MAX_COMMAND_LENGTH + 1];
+    getcwd(temp, MAX_COMMAND_LENGTH);
+    printf("%s\n", temp);
 }
 
 void change_dir(const char *dirname) {

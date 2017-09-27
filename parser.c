@@ -9,12 +9,14 @@
 
 #include "parser.h"
 
-void input_trim(char *buffer, char **start) {
-    *start = buffer;
-    while (**start == ' ') (*start)++;
-    char *end = buffer + strlen(buffer) - 2;
-    while (*end == ' ')end--;
-    *(end + 1) = '\0';
+void input_preprocess(char *buffer, char *parse_buffer) {
+    size_t len1 = strlen(parse_buffer);
+    while (buffer[0] == ' ') buffer++;
+    size_t len2 = strlen(buffer);
+    while (len2 > 0 && (buffer[len2 - 1] == ' ' || buffer[len2 - 1] == '\n')) len2--;
+    strncpy(parse_buffer + len1, buffer, len2);
+    parse_buffer[len1 + len2] = '\n';
+    parse_buffer[len1 + len2 + 1] = '\0';
 }
 
 void add_argv(command_t *command, const char *str, const size_t length) {
@@ -78,84 +80,59 @@ parsed_data_t *input_parse(char *buffer) {
     while (*start != '\0') {
         bool skip = false;
 
-        while (*start == ' ') start++;
-        if (*start == '\0') break;
-
         string_state s_state = STRING_NORMAL;
-        while (true) {
-            if (s_state==' ')
-        }
-
-        char *pos = start;
         size_t length = 0;
 
-
-        while (*start != ' ' && *start != '\0') {
-            if (*start == '\"' || *start == '\'') {
-                char *pos = strchr(start + 1, *pos);
-                if (pos == NULL) {
-                    // Not completed
-                    state = PARSE_QUOTE;
+        while (*start) {
+            if (s_state == STRING_NORMAL) {
+                if (*start == ' ' || *start == '\n') {
+                    start++;
                     break;
-                }
-                strncpy(temp_buffer + length, start + 1, pos - start - 1);
-                length += pos - start - 1;
-                start = pos + 1;
-            } else {
-                char *pos = strchr(start, ' ');
-                if (pos == NULL) {
-                    pos = start + strlen(start);
-
-                    length += strlen(start);
+                } else if (*start == '\"') {
+                    s_state = STRING_QUOTE_DOUBLE;
+                    start++;
+                } else if (*start == '\'') {
+                    s_state = STRING_QUOTE_SINGLE;
+                    start++;
                 } else {
-
+                    temp_buffer[length++] = *(start++);
                 }
-                length = pos - start;
+            } else {
+                if (*start == '\"' && s_state == STRING_QUOTE_DOUBLE) {
+                    s_state = STRING_NORMAL;
+                    start++;
+                } else if (*start == '\'' && s_state == STRING_QUOTE_SINGLE) {
+                    s_state = STRING_NORMAL;
+                    start++;
+                } else {
+                    temp_buffer[length++] = *(start++);
+                }
             }
-
+        }
+        if (length == 0) continue;
+        if (s_state != STRING_NORMAL) {
+            state = PARSE_QUOTE;
+            break;
         }
 
-/*        if (*start == '\"') {
-            pos = strchr(start + 1, '\"');
-            if (pos == NULL) {
-                // Not completed
-                state = PARSE_QUOTE_DOUBLE;
-                break;
-            }
-            start++;
-            pos--;
-        } else if (*start == '\'') {
-            pos = strchr(start + 1, '\'');
-            if (pos == NULL) {
-                // Not completed
-                state = PARSE_QUOTE_SINGLE;
-                break;
-            }
-
-            start++;
-            pos++;
-        } else {
-            pos = strchr(start, ' ');
-            if (pos == NULL) pos = start + strlen(start);
-            length = pos - start;
-        }*/
-
+        temp_buffer[length] = '\0';
+//        printf("%s\n", temp_buffer);
 
         if (length == 1) {
-            if (*start == '>') {
+            if (temp_buffer[0] == '>') {
                 state = PARSE_OUTPUT;
                 new_command->output_state = IO_FILE;
                 skip = true;
 
-            } else if (*start == '<') {
+            } else if (temp_buffer[0] == '<') {
                 state = PARSE_INPUT;
                 new_command->input_state = IO_FILE;
                 skip = true;
-            } else if (*start == '|') {
+            } else if (temp_buffer[0] == '|') {
                 state = PARSE_COMMAND;
                 skip = true;
             }
-        } else if (length == 2 && *start == '>' && *(start + 1) == '>') {
+        } else if (length == 2 && temp_buffer[0] == '>' && temp_buffer[1] == '>') {
             state = PARSE_OUTPUT;
             new_command->output_state = IO_FILE_APPEND;
             skip = true;
@@ -171,38 +148,37 @@ parsed_data_t *input_parse(char *buffer) {
                 }
                 new_command = &data->commands[data->num++];
                 command_init(new_command);
-                add_argv(new_command, start, length);
+                add_argv(new_command, temp_buffer, length);
                 state = PARSE_OPTION;
 //            printf("Find command %s\n", new_command->argv[0]);
                 break;
             case PARSE_OPTION:
-                add_argv(new_command, start, length);
+                add_argv(new_command, temp_buffer, length);
                 break;
 //            printf("Find option %s\n", new_command->argv[new_command->argc - 1]);
             case PARSE_INPUT:
                 if (new_command->input) free(new_command->input);
                 new_command->input = malloc(sizeof(char) * (length + 1));
-                strncpy(new_command->input, start, length);
-                new_command->input[length] = '\0';
+                strcpy(new_command->input, temp_buffer);
+//                new_command->input[length] = '\0';
                 state = PARSE_OPTION;
                 break;
             case PARSE_OUTPUT:
                 if (new_command->output) free(new_command->output);
                 new_command->output = malloc(sizeof(char) * (length + 1));
-                strncpy(new_command->output, start, length);
-                new_command->output[length] = '\0';
+                strcpy(new_command->output, temp_buffer);
+//                new_command->output[length] = '\0';
                 state = PARSE_OPTION;
                 break;
             }
         }
-
-        start = pos;
-        while (*start == ' ')start++;
+        if (!*start) break;
+        while (*start == ' ' || *start == '\n') start++;
     }
 
     if (state != PARSE_OPTION) {
         // Not completed
-
+        data->num = -1;
     }
 
 

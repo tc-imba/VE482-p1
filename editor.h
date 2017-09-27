@@ -11,5 +11,4 @@ int disable_editor_mode();
 
 int editor_mode_read(char *buffer);
 
-
 #endif //P1_EDITOR_H

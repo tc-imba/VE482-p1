@@ -29,7 +29,8 @@ typedef enum {
     PARSE_COMMAND,
     PARSE_OPTION,
     PARSE_INPUT,
-    PARSE_OUTPUT
+    PARSE_OUTPUT,
+    PARSE_QUOTE
 } parse_state;
 
 typedef enum {
@@ -38,7 +39,7 @@ typedef enum {
     STRING_QUOTE_DOUBLE
 } string_state;
 
-void input_trim(char *buffer, char **start);
+void input_preprocess(char *buffer, char *parse_buffer);
 
 parsed_data_t *input_parse_init();
 
