@@ -94,7 +94,7 @@ void read_from_history(char *buffer, int previous, int *now, int *length) {
     }
 }
 
-int editor_mode_read(char *buffer) {
+editor_state editor_mode_read(char *buffer) {
     int fd = STDIN_FILENO;
     int end_read = 0;
     int special_mode = 0;
@@ -105,7 +105,7 @@ int editor_mode_read(char *buffer) {
     while (!end_read) {
         long nread = read(fd, &c, 1);
         if (nread < 0) {
-            return -3;
+            return EDITOR_ERROR;
         }
         if (special_mode) {
             switch (c) {
@@ -173,9 +173,9 @@ int editor_mode_read(char *buffer) {
             break;
         case CTRL_C:
             printf("^C");
-            return -1;
+            return EDITOR_INTERRUPT;
         case CTRL_D:
-            if (length == 0) return -2;
+            if (length == 0) return EDITOR_EXIT;
             else {
                 buffer[now] = '\0';
                 for (int i = 0; i < length - now; i++) printf(" ");
@@ -198,6 +198,6 @@ int editor_mode_read(char *buffer) {
         }
         fflush(stdout);
     }
-    return 0;
+    return EDITOR_ENDL;
 }
 

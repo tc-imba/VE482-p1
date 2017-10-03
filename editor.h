@@ -5,10 +5,17 @@
 #ifndef P1_EDITOR_H
 #define P1_EDITOR_H
 
+typedef enum {
+    EDITOR_ENDL,
+    EDITOR_INTERRUPT,
+    EDITOR_EXIT,
+    EDITOR_ERROR
+} editor_state;
+
 int enable_editor_mode();
 
 int disable_editor_mode();
 
-int editor_mode_read(char *buffer);
+editor_state editor_mode_read(char *buffer);
 
 #endif //P1_EDITOR_H

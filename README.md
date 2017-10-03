@@ -5,3 +5,9 @@
 mkdir build && cd build
 cmake ../ && make
 ```
+
+or
+
+```
+./build.sh
+```

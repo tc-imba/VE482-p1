@@ -5,7 +5,7 @@
 #ifndef P1_PARSER_H
 #define P1_PARSER_H
 
-#define MAX_COMMAND_LENGTH 1024
+#include "defines.h"
 
 typedef enum {
     IO_STD,
