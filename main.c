@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
         else {
             // File mode
             printf("File mode!\n");
-            // This part will be complete in the future
+            // @TODO This part will be complete in the future
             // It is not a requirement of the project
             data = parse_from_file();
             exit(0);

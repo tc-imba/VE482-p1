@@ -9,33 +9,7 @@
 
 #include "parser.h"
 
-void input_preprocess(char *buffer, char *parse_buffer, parse_state state) {
-    size_t len1 = strlen(parse_buffer);
-    if (len1 > 0) {
-        if (state == PARSE_QUOTE) parse_buffer[len1] = '\n';
-        else parse_buffer[len1] = ' ';
-        len1++;
-    }
-    while (buffer[0] == ' ') buffer++;
-    size_t len2 = strlen(buffer);
-    while (len2 > 0 && (buffer[len2 - 1] == ' ' || buffer[len2 - 1] == '\n')) len2--;
-    strncpy(parse_buffer + len1, buffer, len2);
-    parse_buffer[len1 + len2] = '\0';
-}
-
-void add_argv(command_t *command, const char *str, const size_t length) {
-    if (command->argc == 0) {
-        command->argv = malloc(sizeof(char *) * 2);
-    } else {
-        command->argv = realloc(command->argv, sizeof(char *) * (command->argc + 2));
-    }
-    command->argv[command->argc] = malloc(sizeof(char) * (length + 1));
-    strncpy(command->argv[command->argc], str, length);
-    command->argv[command->argc][length] = '\0';
-    command->argc++;
-    command->argv[command->argc] = NULL;
-}
-
+// Init a command
 void command_init(command_t *command) {
     command->argc = 0;
     command->argv = NULL;
@@ -45,6 +19,7 @@ void command_init(command_t *command) {
     command->output_state = IO_STD;
 }
 
+// Clear a command
 void command_clear(command_t *command) {
     if (command->argv) {
         for (int i = 0; i <= command->argc; i++) {
@@ -58,6 +33,22 @@ void command_clear(command_t *command) {
     command->output_state = IO_STD;
 }
 
+// Adds argv to a command
+void add_argv(command_t *command, const char *str, const size_t length) {
+    if (command->argc == 0) {
+        command->argv = malloc(sizeof(char *) * 2);
+    }
+    else {
+        command->argv = realloc(command->argv, sizeof(char *) * (command->argc + 2));
+    }
+    command->argv[command->argc] = malloc(sizeof(char) * (length + 1));
+    strncpy(command->argv[command->argc], str, length);
+    command->argv[command->argc][length] = '\0';
+    command->argc++;
+    command->argv[command->argc] = NULL;
+}
+
+// Init the parse, must be called before exit to avoid memory leak
 parsed_data_t *input_parse_init() {
     static parsed_data_t data = {0, NULL};
     if (data.commands != NULL) {
@@ -69,6 +60,23 @@ parsed_data_t *input_parse_init() {
     }
     data.num = 0;
     return &data;
+}
+
+
+// merge the new line into previous buffer
+// @TODO Check the length
+void input_preprocess(char *buffer, char *parse_buffer, parse_state state) {
+    size_t len1 = strlen(parse_buffer);
+    if (len1 > 0) {
+        if (state == PARSE_QUOTE) parse_buffer[len1] = '\n';
+        else parse_buffer[len1] = ' ';
+        len1++;
+    }
+    while (buffer[0] == ' ') buffer++;
+    size_t len2 = strlen(buffer);
+    while (len2 > 0 && (buffer[len2 - 1] == ' ' || buffer[len2 - 1] == '\n')) len2--;
+    strncpy(parse_buffer + len1, buffer, len2);
+    parse_buffer[len1 + len2] = '\0';
 }
 
 char temp_buffer[MAX_COMMAND_LENGTH + 2] = {};
@@ -92,32 +100,38 @@ parsed_data_t *input_parse(char *buffer) {
                 if (*now == ' ' || *now == '\n') {
                     now++;
                     break;
-                } else if (*now == '\"') {
+                }
+                else if (*now == '\"') {
                     s_state = STRING_QUOTE_DOUBLE;
                     now++;
-                } else if (*now == '\'') {
+                }
+                else if (*now == '\'') {
                     s_state = STRING_QUOTE_SINGLE;
                     now++;
-                } else {
+                }
+                else {
                     temp_buffer[length++] = *(now++);
                 }
-            } else {
+            }
+            else {
                 if (*now == '\"' && s_state == STRING_QUOTE_DOUBLE) {
                     s_state = STRING_NORMAL;
                     now++;
-                } else if (*now == '\'' && s_state == STRING_QUOTE_SINGLE) {
+                }
+                else if (*now == '\'' && s_state == STRING_QUOTE_SINGLE) {
                     s_state = STRING_NORMAL;
                     now++;
-                } else {
+                }
+                else {
                     temp_buffer[length++] = *(now++);
                 }
             }
         }
-        if (length == 0) continue;
         if (s_state != STRING_NORMAL) {
             state = PARSE_QUOTE;
             break;
         }
+        if (length == 0) continue;
 
         temp_buffer[length] = '\0';
 //        printf("%s\n", temp_buffer);
@@ -128,15 +142,18 @@ parsed_data_t *input_parse(char *buffer) {
                 new_command->output_state = IO_FILE;
                 skip = true;
 
-            } else if (temp_buffer[0] == '<') {
+            }
+            else if (temp_buffer[0] == '<') {
                 state = PARSE_INPUT;
                 new_command->input_state = IO_FILE;
                 skip = true;
-            } else if (temp_buffer[0] == '|') {
+            }
+            else if (temp_buffer[0] == '|') {
                 state = PARSE_COMMAND;
                 skip = true;
             }
-        } else if (length == 2 && temp_buffer[0] == '>' && temp_buffer[1] == '>') {
+        }
+        else if (length == 2 && temp_buffer[0] == '>' && temp_buffer[1] == '>') {
             state = PARSE_OUTPUT;
             new_command->output_state = IO_FILE_APPEND;
             skip = true;
@@ -147,7 +164,8 @@ parsed_data_t *input_parse(char *buffer) {
             case PARSE_COMMAND:
                 if (data->num == 0) {
                     data->commands = malloc(sizeof(command_t));
-                } else {
+                }
+                else {
                     data->commands = realloc(data->commands, sizeof(command_t) * (data->num + 1));
                 }
                 new_command = &data->commands[data->num++];
