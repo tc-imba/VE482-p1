@@ -6,6 +6,7 @@
 #define P1_EDITOR_H
 
 typedef enum {
+    EDITOR_READING,
     EDITOR_ENDL,
     EDITOR_INTERRUPT,
     EDITOR_EXIT,

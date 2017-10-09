@@ -11,13 +11,13 @@
 #include "history.h"
 
 // The input buffer
-char buffer[MAX_COMMAND_LENGTH + 2] = {};
+static char buffer[MAX_COMMAND_LENGTH + 2] = {};
 
 // The parsed buffer
-char parse_buffer[MAX_COMMAND_LENGTH + 2] = {};
+static char parse_buffer[MAX_COMMAND_LENGTH + 2] = {};
 
 // Current parse state (PARSE_OPTION means complete)
-parse_state state = PARSE_OPTION;
+static parse_state state = PARSE_OPTION;
 
 
 void init() {
@@ -27,12 +27,6 @@ void init() {
 void save_history() {
     add_history(parse_buffer);
 };
-
-void terminate() {
-    input_parse_init();
-    free_history();
-    exit(0);
-}
 
 parsed_data_t *parse_from_tty() {
     init();
@@ -47,33 +41,33 @@ parsed_data_t *parse_from_tty() {
         disable_editor_mode();
         switch (_editor_state) {
         case EDITOR_INTERRUPT:
-            printf("^C\n");
+            fprintf(stderr, "^C\n");
             flag = false;
             data = NULL;
             break;
         case EDITOR_EXIT:
             if (complete) {
-                printf("\n");
+                fprintf(stderr, "exit\n");
                 terminate();
-            }
-            else printf("syntax error: unexpected end of file\n");
+            } else fprintf(stderr, "syntax error: unexpected end of file\n");
             flag = false;
             data = NULL;
             break;
         case EDITOR_ENDL:
-            printf("\n");
+            fprintf(stderr, "\n");
             input_preprocess(buffer, parse_buffer, state);
             data = input_parse(parse_buffer);
             state = data->state;
-            if (data->num < 0) {
+            if (data->state == PARSE_ERROR) {
+                flag = false;
+            } else if (data->state != PARSE_OPTION) {
                 complete = false;
-            }
-            else {
+            } else {
                 flag = false;
             }
             break;
         case EDITOR_ERROR:
-            printf("Unknown error!\n");
+            fprintf(stderr, "Unknown error!\n");
             flag = false;
             data = NULL;
             break;
@@ -94,13 +88,13 @@ int main(int argc, char *argv[]) {
         if (isatty(STDIN_FILENO)) {
             // TTY mode
             data = parse_from_tty();
-        }
-        else {
+        } else {
             // File mode
-            printf("File mode!\n");
+            fprintf(stderr, "File mode!\n");
             // @TODO This part will be complete in the future
             // It is not a requirement of the project
             data = parse_from_file();
+            terminate();
             exit(0);
         }
 
@@ -109,15 +103,61 @@ int main(int argc, char *argv[]) {
             terminate();
         }
 
+        if (!data) {
+            //printf("error: Syntax Error\n");
+            continue;
+        }
+
+        if (data->state == PARSE_ERROR)
+        {
+            switch (data->error)
+            {
+            case ERROR_DUPLICATED_INPUT:
+                fprintf(stderr, "error: duplicated input redirection\n");
+                break;
+            case ERROR_DUPLICATED_OUTPUT:
+                fprintf(stderr, "error: duplicated output redirection\n");
+                break;
+            case ERROR_SYNTAX:
+                fprintf(stderr, "syntax error\n");
+                break;
+            case ERROR_SYNTAX_INPUT:
+                fprintf(stderr, "syntax error near unexpected token `<'\n");
+                break;
+            case ERROR_SYNTAX_OUTPUT:
+                fprintf(stderr, "syntax error near unexpected token `>'\n");
+                break;
+            case ERROR_SYNTAX_PIPE:
+                fprintf(stderr, "syntax error near unexpected token `|'\n");
+                break;
+            case ERROR_MISSING_PROGRAM:
+                fprintf(stderr, "error: missing program\n");
+                break;
+            default:
+                fprintf(stderr, "error: unknown error\n");
+                break;
+            }
+            continue;
+        }
+
         // Process incomplete command
-        if (!data || data->num < 0) {
+        if (data->state != PARSE_OPTION) {
             continue;
         }
 
         // Process cd
         if (data->num > 0 && strcmp(data->commands[0].argv[0], "cd") == 0) {
-            if (data->commands[0].argc > 1) change_dir(data->commands[0].argv[1]);
-            else change_dir("~");
+            switch (data->commands[0].argc) {
+            case 1:
+                change_dir("~");
+                break;
+            case 2:
+                change_dir(data->commands[0].argv[1]);
+                break;
+            default:
+                fprintf(stderr, "cd: too many arguments\n");
+                break;
+            }
             save_history();
             continue;
         }

@@ -14,19 +14,28 @@
 #include <pwd.h>
 
 #include "utils.h"
+#include "history.h"
+
+static char temp_buffer[MAX_COMMAND_LENGTH + 1] = {};
+
+void terminate() {
+    input_parse_init();
+    free_history();
+    exit(0);
+}
 
 void print_prompt() {
-    printf("\033[1;34mve482sh $\033[0m ");
+    fprintf(stderr, "\033[1;34mve482sh $\033[0m ");
 }
 
 void print_incomplete() {
-    printf("> ");
+    fprintf(stderr, "> ");
 }
 
-void print_pwd(ino_t ino) {
-    static char temp[MAX_COMMAND_LENGTH + 1];
-    getcwd(temp, MAX_COMMAND_LENGTH);
-    printf("%s\n", temp);
+void print_pwd() {
+    char *result = getcwd(temp_buffer, MAX_COMMAND_LENGTH);
+    if (result == NULL) fprintf(stderr, "unable to display: the path is longer than %d", MAX_COMMAND_LENGTH);
+    else printf("%s\n", temp_buffer);
 }
 
 void change_dir(const char *dirname) {
@@ -43,19 +52,19 @@ void change_dir(const char *dirname) {
             temp[len2] = '\0';
         }
         int fd = open(temp, O_RDONLY);
-        if (fd < 0) printf("%s: No such file or directory\n", temp);
-        else if (fchdir(fd) < 0) printf("%s: Not a directory\n", temp);
+        if (fd < 0) fprintf(stderr, "%s: No such file or directory\n", temp);
+        else if (fchdir(fd) < 0) fprintf(stderr, "%s: Not a directory\n", temp);
         free(temp);
     } else {
         int fd = open(dirname, O_RDONLY);
-        if (fd < 0) printf("%s: No such file or directory\n", dirname);
-        else if (fchdir(fd) < 0) printf("%s: Not a directory\n", dirname);
+        if (fd < 0) fprintf(stderr, "%s: No such file or directory\n", dirname);
+        else if (fchdir(fd) < 0) fprintf(stderr, "%s: Not a directory\n", dirname);
     }
 }
 
 void sigroutine(int dunno) {
     if (dunno == SIGINT) {
-        printf("\n");
+        fprintf(stderr, "\n");
     }
 }
 
@@ -65,8 +74,8 @@ void fork_and_exec(parsed_data_t *data, int current, int previous_fd[]) {
     if (current < data->num - 1) {
         int error = pipe(fd);
         if (error == -1) {
-            printf("pipe error\n");
-            exit(-1);
+            fprintf(stderr, "pipe error\n");
+            terminate();
         }
     }
 
@@ -82,6 +91,10 @@ void fork_and_exec(parsed_data_t *data, int current, int previous_fd[]) {
         } else {
             // printf("input: %s\n", command->input);
             fin = open(command->input, O_RDONLY);
+            if (fin < 0) {
+                fprintf(stderr, "%s: No such file or directory\n", command->input);
+                terminate();
+            }
         }
         if (fin >= 0) {
             close(STDIN_FILENO);
@@ -97,7 +110,11 @@ void fork_and_exec(parsed_data_t *data, int current, int previous_fd[]) {
             if (command->output_state == IO_FILE)
                 fout = open(command->output, O_CREAT | O_TRUNC | O_WRONLY, 0644);
             else
-                fout = open(command->output, O_CREAT | O_WRONLY | O_APPEND);
+                fout = open(command->output, O_CREAT | O_WRONLY | O_APPEND, 0644);
+            if (fout < 0) {
+                fprintf(stderr, "%s: Permission denied\n", command->output);
+                terminate();
+            }
         }
         if (fout >= 0) {
             close(STDOUT_FILENO);
@@ -106,14 +123,14 @@ void fork_and_exec(parsed_data_t *data, int current, int previous_fd[]) {
 
         // printf("Child process: %s\n", command->argv[0]);
         if (strcmp(command->argv[0], "pwd") == 0) {
-            print_pwd(0);
-            exit(0);
+            print_pwd();
+            terminate();
         } else {
             int error = execvp(command->argv[0], command->argv);
             if (error == -1) {
-                printf("%s: command not found\n", command->argv[0]);
+                fprintf(stderr, "%s: command not found\n", command->argv[0]);
             }
-            exit(-1);
+            terminate();
         }
         // if (fin >= 0) close(fin);
         // if (fout >= 0) close(fout);

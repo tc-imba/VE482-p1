@@ -8,11 +8,13 @@
 #include <dirent.h>
 #include "parser.h"
 
+void terminate();
+
 void print_prompt();
 
 void print_incomplete();
 
-void print_pwd(ino_t ino);
+void print_pwd();
 
 void change_dir(const char *dirname);
 

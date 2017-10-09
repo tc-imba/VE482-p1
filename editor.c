@@ -42,16 +42,16 @@ enum KEY_SPECIAL {
     ARROW_LEFT = 68
 };
 
-struct termios origin_termios;
-int editor_mode = 0;
-int editor_line_length[MAX_COMMAND_LINES] = {};
-int editor_line_now = 0;
-int editor_line_max = 0;
-int editor_offset_now = 0;
-int editor_offset_max = 0;
-int editor_total_now = 0;
-int editor_total_max = 0;
-int editor_special_mode = 0;
+static struct termios origin_termios;
+static int editor_mode = 0;
+static int editor_line_length[MAX_COMMAND_LINES] = {};
+static int editor_line_now = 0;
+static int editor_line_max = 0;
+static int editor_offset_now = 0;
+#define editor_offset_max editor_line_length[editor_line_now]
+static int editor_total_now = 0;
+static int editor_total_max = 0;
+static int editor_special_mode = 0;
 
 int enable_editor_mode() {
     if (editor_mode) return 0;
@@ -104,15 +104,20 @@ void read_from_history(char *buffer, int previous, int *now, int *length, int *l
 }
 
 void editor_mode_init() {
-    editor_line_max = 1;
+    for (int i = 0; i <= editor_line_max; i++) {
+        editor_line_length[i] = 0;
+    }
+    editor_line_max = 0;
     editor_line_now = 0;
     editor_offset_now = 0;
-    editor_offset_max = 0;
+    editor_total_now = 0;
+    editor_total_max = 0;
+    editor_special_mode = 0;
 }
 
 // Deal with special characters
-// @TODO add support for arrows
-int editor_mode_special(char*buffer, char c) {
+// @TODO add support for history
+int editor_mode_special(char *buffer, char c) {
     switch (c) {
     case SPECIAL_BEGIN:
         if (editor_special_mode == 1) {
@@ -126,18 +131,30 @@ int editor_mode_special(char*buffer, char c) {
     case ARROW_RIGHT:
     case ARROW_LEFT:
         if (editor_special_mode == 2) {
-            /*if (c == ARROW_LEFT && now > 0) {
-                now--;
-                printf("\b");
-                fflush(stdout);
-            } else if (c == ARROW_RIGHT && now < length) {
-                printf("%c", buffer[now++]);
-                fflush(stdout);
+            if (c == ARROW_LEFT && editor_total_now > 0) {
+                if (editor_offset_now == 0) {
+                    // line begin
+                    printf("not implemented\n");
+                } else {
+                    // normal
+                    printf("\b");
+                    editor_offset_now--;
+                }
+                editor_total_now--;
+            } else if (c == ARROW_RIGHT && editor_total_now < editor_total_max) {
+                if (editor_line_now < editor_line_max && editor_offset_now == editor_line_length[editor_line_now]) {
+                    // line end
+                    editor_total_now++;
+                } else {
+                    // normal
+                    printf("%c", buffer[editor_total_now++]);
+                    editor_offset_now++;
+                }
             } else if (c == ARROW_UP) {
-                read_from_history(buffer, 1, &now, &length, &line);
+                //read_from_history(buffer, 1, &now, &length, &line);
             } else {
-                read_from_history(buffer, 0, &now, &length, &line);
-            }*/
+                //read_from_history(buffer, 0, &now, &length, &line);
+            }
             editor_special_mode = 0;
             return 1;
         }
@@ -150,79 +167,110 @@ int editor_mode_special(char*buffer, char c) {
     return 0;
 }
 
+editor_state editor_mode_normal(char *buffer, char c) {
+    switch (c) {
+    case ESC:
+        editor_special_mode = 1;
+        break;
+    case ENTER:
+        buffer[editor_total_max++] = '\n';
+        buffer[editor_total_max] = '\0';
+        return EDITOR_ENDL;
+    case BACKSPACE:
+    case CTRL_H:
+        if (editor_total_now > 0) {
+            memmove(buffer + editor_total_now - 1, buffer + editor_total_now, editor_total_max - editor_total_now + 1);
+            if (editor_offset_now == 0) {
+                // Delete a line buffer[editor_total_now - 1] == '\n'
+                printf("not implemented\n");
+                //printf("\33[A");
+
+            } else {
+                // Delete a char
+                editor_total_now--; // total pos
+                editor_total_max--; // total length
+                editor_offset_now--; // current pos on this line
+                editor_offset_max--; // max chars on this line
+
+                printf("\b\33[K"); // clear the line
+                char *temp = buffer + editor_total_now;
+                int length = editor_offset_max - editor_offset_now + 1;
+                for (int i = 0; i < length; i++) {
+                    printf("%c", *temp++);
+                }
+                for (int i = 0; i < length - 1; i++) {
+                    printf("\b");
+                }
+            }
+            //now--;
+            //length--;
+        }
+        break;
+    case CTRL_C:
+        return EDITOR_INTERRUPT;
+    case CTRL_D:
+        if (editor_total_max == 0) return EDITOR_EXIT;
+        else {
+            //buffer[now] = '\0';
+            //for (int i = 0; i < length - now; i++) printf(" ");
+            //for (int i = 0; i < length - now; i++) printf("\b");
+            //length = now;
+        }
+        break;
+    case TAB:
+
+        break;
+    default:
+        if (editor_total_now <= editor_total_max) {
+            memmove(buffer + editor_total_now + 1, buffer + editor_total_now,
+                    editor_total_max - editor_total_now + 1); // \0 is always moved
+            buffer[editor_total_now] = c;
+            printf("\33[K"); // clear the line
+
+            char *temp = buffer + editor_total_now;
+            int length = editor_offset_max - editor_offset_now + 1;
+            for (int i = 0; i < length; i++) {
+                printf("%c", *temp++);
+            }
+            for (int i = 0; i < length - 1; i++) {
+                printf("\b");
+            }
+
+            editor_total_now++; // total pos
+            editor_total_max++; // total length
+            editor_offset_now++; // current pos on this line
+            editor_offset_max++; // max chars on this line
+
+        } else printf("error\n");
+        break;
+    }
+    return EDITOR_READING;
+}
+
 editor_state editor_mode_read(char *buffer) {
     int fd = STDIN_FILENO;
-    int end_read = 0;
-    int special_mode = 0;
     char c;
-    int length = 0, now = 0;
 
+    editor_mode_init();
 
     buffer[0] = '\0'; // Initial \0
     reset_history();
-    while (!end_read) {
+    while (1) {
         long nread = read(fd, &c, 1); // Read a char from stdin
         if (nread < 0) {
             return EDITOR_ERROR;
         }
-        if (special_mode) {
-
-        }
-        switch (c) {
-        case ESC:
-            special_mode = 1;
-            break;
-        case ENTER:
-            buffer[length++] = '\n';
-            buffer[length] = '\0';
-            end_read = 1;
-            break;
-        case BACKSPACE:
-        case CTRL_H:
-            if (now > 0) {
-                memmove(buffer + now - 1, buffer + now, length - now + 1);
-//                buffer[length - 1] = '\0';
-                if (buffer[now - 1] == '\n') {
-                    printf("\33[A");
-
-                } else {
-                    printf("\b\33[K");
-                    char *temp = buffer + now - 1;
-                    while (*temp && *temp != '\n') {
-                        printf("%c", *temp++);
-                    }
-                }
-                now--;
-                length--;
+        if (editor_special_mode) {
+            int result = editor_mode_special(buffer, c);
+            if (result) {
+                fflush(stdout);
+                continue;
             }
-            break;
-        case CTRL_C:
-            printf("^C");
-            return EDITOR_INTERRUPT;
-        case CTRL_D:
-            if (length == 0) return EDITOR_EXIT;
-            else {
-                buffer[now] = '\0';
-                for (int i = 0; i < length - now; i++) printf(" ");
-                for (int i = 0; i < length - now; i++) printf("\b");
-                length = now;
-            }
-        case TAB:
-
-            break;
-        default:
-            if (now <= length) {
-                memmove(buffer + now + 1, buffer + now, length - now + 1); // \0 is always moved
-                buffer[now] = c;
-                printf("%s", buffer + now);
-                now++;
-                length++;
-                for (int i = 0; i < length - now; i++) printf("\b");
-            } else printf("error\n");
-            break;
         }
+        editor_state result = editor_mode_normal(buffer, c);
         fflush(stdout);
+        if (result != EDITOR_READING)
+            return result;
     }
-    return EDITOR_ENDL;
 }
 
