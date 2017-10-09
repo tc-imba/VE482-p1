@@ -44,6 +44,9 @@ enum KEY_SPECIAL {
 
 struct termios origin_termios;
 int editor_mode = 0;
+int editor_line_length[MAX_COMMAND_LINES] = {};
+int editor_line_max = 0;
+int editor_line_now = 0;
 
 int enable_editor_mode() {
     if (editor_mode) return 0;
@@ -73,7 +76,7 @@ int disable_editor_mode() {
     return 0;
 }
 
-void read_from_history(char *buffer, int previous, int *now, int *length) {
+void read_from_history(char *buffer, int previous, int *now, int *length, int *line) {
     set_history(buffer);
     const char *temp;
     if (previous) temp = get_history_previous();
@@ -87,6 +90,7 @@ void read_from_history(char *buffer, int previous, int *now, int *length) {
             if (*temp == '\n') {
                 printf("\n\r");
                 print_incomplete();
+                (*line)++;
             } else printf("%c", *temp);
             temp++;
         }
@@ -100,6 +104,10 @@ editor_state editor_mode_read(char *buffer) {
     int special_mode = 0;
     char c;
     int length = 0, now = 0;
+
+    int lineLength[MAX_COMMAND_LINES] = {};
+    int line = 0;
+
     buffer[0] = '\0'; // Initial \0
     reset_history();
     while (!end_read) {
@@ -129,9 +137,9 @@ editor_state editor_mode_read(char *buffer) {
                         printf("%c", buffer[now++]);
                         fflush(stdout);
                     } else if (c == ARROW_UP) {
-                        read_from_history(buffer, 1, &now, &length);
+                        read_from_history(buffer, 1, &now, &length, &line);
                     } else {
-                        read_from_history(buffer, 0, &now, &length);
+                        read_from_history(buffer, 0, &now, &length, &line);
                     }
                     special_mode = 0;
                     continue;
