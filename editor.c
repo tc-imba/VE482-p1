@@ -45,8 +45,13 @@ enum KEY_SPECIAL {
 struct termios origin_termios;
 int editor_mode = 0;
 int editor_line_length[MAX_COMMAND_LINES] = {};
-int editor_line_max = 0;
 int editor_line_now = 0;
+int editor_line_max = 0;
+int editor_offset_now = 0;
+int editor_offset_max = 0;
+int editor_total_now = 0;
+int editor_total_max = 0;
+int editor_special_mode = 0;
 
 int enable_editor_mode() {
     if (editor_mode) return 0;
@@ -98,6 +103,53 @@ void read_from_history(char *buffer, int previous, int *now, int *length, int *l
     }
 }
 
+void editor_mode_init() {
+    editor_line_max = 1;
+    editor_line_now = 0;
+    editor_offset_now = 0;
+    editor_offset_max = 0;
+}
+
+// Deal with special characters
+// @TODO add support for arrows
+int editor_mode_special(char*buffer, char c) {
+    switch (c) {
+    case SPECIAL_BEGIN:
+        if (editor_special_mode == 1) {
+            editor_special_mode = 2;
+            return 1;
+        }
+        editor_special_mode = 0;
+        break;
+    case ARROW_UP:
+    case ARROW_DOWN:
+    case ARROW_RIGHT:
+    case ARROW_LEFT:
+        if (editor_special_mode == 2) {
+            /*if (c == ARROW_LEFT && now > 0) {
+                now--;
+                printf("\b");
+                fflush(stdout);
+            } else if (c == ARROW_RIGHT && now < length) {
+                printf("%c", buffer[now++]);
+                fflush(stdout);
+            } else if (c == ARROW_UP) {
+                read_from_history(buffer, 1, &now, &length, &line);
+            } else {
+                read_from_history(buffer, 0, &now, &length, &line);
+            }*/
+            editor_special_mode = 0;
+            return 1;
+        }
+        editor_special_mode = 0;
+        break;
+    default:
+        editor_special_mode = 0;
+        break;
+    }
+    return 0;
+}
+
 editor_state editor_mode_read(char *buffer) {
     int fd = STDIN_FILENO;
     int end_read = 0;
@@ -105,51 +157,16 @@ editor_state editor_mode_read(char *buffer) {
     char c;
     int length = 0, now = 0;
 
-    int lineLength[MAX_COMMAND_LINES] = {};
-    int line = 0;
 
     buffer[0] = '\0'; // Initial \0
     reset_history();
     while (!end_read) {
-        long nread = read(fd, &c, 1);
+        long nread = read(fd, &c, 1); // Read a char from stdin
         if (nread < 0) {
             return EDITOR_ERROR;
         }
         if (special_mode) {
-            switch (c) {
-            case SPECIAL_BEGIN:
-                if (special_mode == 1) {
-                    special_mode = 2;
-                    continue;
-                }
-                special_mode = 0;
-                break;
-            case ARROW_UP:
-            case ARROW_DOWN:
-            case ARROW_RIGHT:
-            case ARROW_LEFT:
-                if (special_mode == 2) {
-                    if (c == ARROW_LEFT && now > 0) {
-                        now--;
-                        printf("\b");
-                        fflush(stdout);
-                    } else if (c == ARROW_RIGHT && now < length) {
-                        printf("%c", buffer[now++]);
-                        fflush(stdout);
-                    } else if (c == ARROW_UP) {
-                        read_from_history(buffer, 1, &now, &length, &line);
-                    } else {
-                        read_from_history(buffer, 0, &now, &length, &line);
-                    }
-                    special_mode = 0;
-                    continue;
-                }
-                special_mode = 0;
-                break;
-            default:
-                special_mode = 0;
-                break;
-            }
+
         }
         switch (c) {
         case ESC:
