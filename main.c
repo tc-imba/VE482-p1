@@ -67,6 +67,7 @@ parsed_data_t *parse_from_tty() {
             }
             break;
         case EDITOR_ERROR:
+        default:
             fprintf(stderr, "Unknown error!\n");
             flag = false;
             data = NULL;
