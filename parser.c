@@ -258,6 +258,8 @@ parsed_data_t *input_parse(char *buffer) {
                     data->state = PARSE_OPTION;
                 }
                 break;
+            default:
+                break;
             }
         }
         if (data->state == PARSE_ERROR) break;
