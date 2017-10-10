@@ -11,7 +11,7 @@
 #define MAX_HISTORY 3
 
 char *history[MAX_HISTORY];
-char history_now[1026] = {};
+char history_now[1026] = {0};
 int history_num = 0;
 int history_entry_pos = 0;
 int history_offset = 0;

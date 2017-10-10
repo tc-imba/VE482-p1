@@ -9,7 +9,7 @@
 
 #include "parser.h"
 
-static char temp_buffer[MAX_COMMAND_LENGTH + 2] = {};
+static char temp_buffer[MAX_COMMAND_LENGTH + 2] = {0};
 
 // Init a command
 void command_init(command_t *command) {

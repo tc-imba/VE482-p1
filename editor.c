@@ -44,7 +44,7 @@ enum KEY_SPECIAL {
 
 static struct termios origin_termios;
 static int editor_mode = 0;
-static int editor_line_length[MAX_COMMAND_LINES] = {};
+static int editor_line_length[MAX_COMMAND_LINES] = {0};
 static int editor_line_now = 0;
 static int editor_line_max = 0;
 static int editor_offset_now = 0;

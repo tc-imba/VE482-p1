@@ -11,10 +11,10 @@
 #include "history.h"
 
 // The input buffer
-static char buffer[MAX_COMMAND_LENGTH + 2] = {};
+static char buffer[MAX_COMMAND_LENGTH + 2] = {0};
 
 // The parsed buffer
-static char parse_buffer[MAX_COMMAND_LENGTH + 2] = {};
+static char parse_buffer[MAX_COMMAND_LENGTH + 2] = {0};
 
 // Current parse state (PARSE_OPTION means complete)
 static parse_state state = PARSE_OPTION;
@@ -26,7 +26,7 @@ void init() {
 
 void save_history() {
     add_history(parse_buffer);
-};
+}
 
 parsed_data_t *parse_from_tty() {
     init();
@@ -151,12 +151,11 @@ int main(int argc, char *argv[]) {
             case 1:
                 change_dir("~");
                 break;
-            case 2:
+            default:
                 change_dir(data->commands[0].argv[1]);
                 break;
-            default:
-                fprintf(stderr, "cd: too many arguments\n");
-                break;
+                //fprintf(stderr, "cd: too many arguments\n");
+                //break;
             }
             save_history();
             continue;

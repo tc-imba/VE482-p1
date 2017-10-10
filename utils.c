@@ -16,7 +16,7 @@
 #include "utils.h"
 #include "history.h"
 
-static char temp_buffer[MAX_COMMAND_LENGTH + 1] = {};
+static char temp_buffer[MAX_COMMAND_LENGTH + 1] = {0};
 
 void terminate() {
     input_parse_init();
@@ -70,7 +70,7 @@ void sigroutine(int dunno) {
 
 void fork_and_exec(parsed_data_t *data, int current, int previous_fd[]) {
     if (current == data->num) return;
-    int fd[2] = {};
+    int fd[2] = {0};
     if (current < data->num - 1) {
         int error = pipe(fd);
         if (error == -1) {
