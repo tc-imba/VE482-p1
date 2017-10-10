@@ -49,6 +49,8 @@ mkdir build && cd build
 cmake ../ && make
 ```
 
+The built target is named `p1`.
+
 or (on KDE Desktop with Konsole)
 
 ```
